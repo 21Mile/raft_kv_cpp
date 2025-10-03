@@ -1,0 +1,73 @@
+syntax = "proto3";
+// 节点之间的远程调用
+package raftRpcProctoc;            //所在的命名空间
+option cc_generic_services = true; //开启stub服务
+
+// 日志消息结构
+message LogEntry {
+  bytes Command = 1;  //命令（数据）
+  int32 LogTerm = 2;  //任期号
+  int32 LogIndex = 3; //日志号
+}
+
+// 领导者（Leader）发送给跟随者（Follower）的请求，用于复制日志条目或发送心跳。
+message AppendEntriesArgs {
+  //	下面几个参数和论文中相同
+  int32 Term = 1;         //​​领导者的当前任期号​(检查任期)
+  int32 LeaderId = 2;     //​​领导者的节点ID​
+  int32 PrevLogIndex = 3; //​​前一条日志的索引位置​
+  int32 PrevLogTerm = 4;  //​​前一条日志的任期号​
+  repeated LogEntry Entries = 5; //要复制的日志条目​
+  int32 LeaderCommit = 6;        //领导者的已提交索引​
+}
+
+// AppendEntriesReply 论文中没有提及返回要设置哪些状态
+message AppendEntriesReply {
+  int32 Term = 1; // leader的term可能是与Follower不同的，
+  bool Success =
+      2; //​​建议的下一个日志索引​​,用于快速修复不一致的日志
+  int32 UpdateNextIndex = 3; //快速调整leader对应的nextIndex
+  int32 AppState = 4;        // 用来标识节点（网络）状态
+  //   0 = 正常
+  // 1 = 节点掉线
+  // 2 = 正在追赶日志
+  // 3 = 其他异常
+}
+
+// --- 请求投票 ---
+message RequestVoteArgs {
+  int32 Term = 1;         //任期号
+  int32 CandidateId = 2;  //候选人ID
+  int32 LastLogIndex = 3; // 最后一条日志号
+  int32 LastLogTerm = 4;  //最后一条日志的任期号
+}
+// 消息结构：投票响应
+message RequestVoteReply {
+  // Your data here (2A).
+  int32 Term = 1;       //任期号
+  bool VoteGranted = 2; //是否投票
+  int32 VoteState = 3;  //投票状态
+}
+
+// 消息结构：快照信息
+message InstallSnapshotRequest  {
+	int32 LeaderId                 =1; //领导者节点
+	int32 Term                     =2; // 任期号
+	int32 LastSnapShotIncludeIndex =3; // 最后一个快照的索引
+	int32 LastSnapShotIncludeTerm  =4; // 最后一个快照的任期号
+	bytes Data                     =5;//快照信息，当然是用bytes来传递
+}
+// 消息结构：快照响应
+// InstallSnapshotResponse 只用返回Term，因为对于快照只要Term是符合的就是无条件接受的
+message InstallSnapshotResponse  {
+	int32 Term  = 1;
+}
+
+// 服务结构： rpc
+service raftRpc  
+{
+    rpc AppendEntries(AppendEntriesArgs) returns(AppendEntriesReply);
+    rpc RequestVote(RequestVoteArgs) returns(RequestVoteReply);
+    rpc InstallSnapshot(InstallSnapshotRequest) returns(InstallSnapshotResponse);
+    
+}

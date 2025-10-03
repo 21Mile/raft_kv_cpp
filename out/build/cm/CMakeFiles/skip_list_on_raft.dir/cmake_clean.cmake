@@ -1,0 +1,26 @@
+file(REMOVE_RECURSE
+  "../../../lib/libskip_list_on_raft.a"
+  "../../../lib/libskip_list_on_raft.pdb"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/fd_manager.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/fiber.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/hook.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/iomanager.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/scheduler.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/thread.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/timer.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/fiber/utils.cpp.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/public/utils.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/raftCore/kvServer.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/raftCore/raft.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/raftRpcPro/kvServerRpc.pb.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/raftRpcPro/raftRpc.pb.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/rpc/mpRpcChannel.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/rpc/mpRpcConfig.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/rpc/rpcProvider.cc.o"
+  "CMakeFiles/skip_list_on_raft.dir/src/rpc/rpcheader.pb.cc.o"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/skip_list_on_raft.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

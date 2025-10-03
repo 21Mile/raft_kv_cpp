@@ -1,0 +1,43 @@
+syntax = "proto3";
+//注意：这个是状态机的rpc，也就是kvserver，用于kvserver和节点之间的通信
+package raftKVRpcProctoc; //所在的命名空间
+
+option cc_generic_services = true; //开启stub服务
+//生成服务基类（MyService）
+// 生成客户端存根类（MyService_Stub）
+
+
+// GET操作的消息实体
+message GetArgs {
+  bytes Key = 1;
+  bytes ClientId = 2;
+  int32 RequestId = 3;
+}
+
+message GetReply {
+  //	下面几个参数和论文中相同
+  bytes Err = 1;
+  bytes Value = 2;
+}
+
+// Put or Append 消息定义
+message PutAppendArgs {
+  bytes Key = 1;
+  bytes Value = 2;
+  bytes Op = 3;
+  // "Put" or "Append"
+  // You'll have to add definitions here.
+  // Field names must start with capital letters,
+  // otherwise RPC will break.
+  bytes ClientId = 4;
+  int32 RequestId = 5;
+}
+// 操作回复的消息定义
+message PutAppendReply { bytes Err = 1; }
+
+// 服务定义
+
+service kvServiceRpc{
+    rpc PutAppend(PutAppendArgs) returns (PutAppendReply);
+    rpc Get(GetArgs) returns (GetReply);
+}
