@@ -1,1 +1,0 @@
-/usr/bin/clang++ -g CMakeFiles/KVRaftCpp_test.dir/test_util.cc.o -o ../../../../bin/KVRaftCpp_test   -L/home/cyan/CPP_Project/My_Raft_KV/lib  -Wl,-rpath,/home/cyan/CPP_Project/My_Raft_KV/lib ../../../../lib/liblibTest.a -lgtest -lgtest_main -pthread /usr/lib/x86_64-linux-gnu/libboost_serialization.so.1.74.0 
