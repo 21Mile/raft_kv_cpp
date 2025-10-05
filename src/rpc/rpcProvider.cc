@@ -5,8 +5,13 @@
 #include <cstring>
 #include <fstream>
 #include <string>
+#include <arpa/inet.h> // inet_pton
+#include <cstdlib>     // std::getenv
+#include <thread>      // std::thread::hardware_concurrency
+#include <algorithm>   // std::max, std::min
+#include <fcntl.h>
 #include "rpcheader.pb.h"
-#include "utils.hpp"
+#include "m_utils.hpp"
 
 /*
 service_name =>  service描述
@@ -37,58 +42,46 @@ void RpcProvider::NotifyService(google::protobuf::Service *service)
   ;
 }
 // 使用gprc框架和自定义RPC的区别：grpc是使用现成的代码，而自定义的rpc，是使用自定义的服务器来处理输入、输出
-//  protobuf在这里只是扮演一个类似于json的角色：对数据进行格式化和反格式化，中间状态为二进制流（便于传输）
+// protobuf在这里只是扮演一个类似于json的角色：对数据进行格式化和反格式化，中间状态为二进制流（便于传输）
+// 需要的头文件（通常你的工程里已包含，如无则加上）
+
 void RpcProvider::Run(int nodeIndex, short port)
 {
-  char *ipC;
-  char hname[128];
-  struct hostent *hent;
-  gethostname(hname, sizeof(hname)); // 将获取host的名称，写入到hname中
-  for (int i = 0; hent->h_addr_list[i]; i++)
-  {
-    // 进行char数组的转换
-    ipC = inet_ntoa(*(struct in_addr *)(hent->h_addr_list[i])); // IP地址
-  }
-  std::string ip = std::string(ipC); // 将char数组转换为string
-  // 添加节点标识符
-  std::string node = "node" + std::to_string(nodeIndex);
-  std::ofstream outfile;
-  outfile.open("test.conf", std::ios::app); // 以append的模式写入
-  if (!outfile.is_open())
-  {
-    std::cout << "打开文件失败！" << std::endl;
-    exit(EXIT_FAILURE);
-  }
-  outfile << node << "IP:" << ip << std::endl;
-  outfile << node << "Port:" << port << std::endl;
-  outfile.close(); // 关闭文件句柄
-
-  // --- 二阶段，创建muduo服务器 ---
+  const std::string ip = "0.0.0.0"; // 直接绑 0.0.0.0，避免主机名解析坑
   muduo::net::InetAddress address(ip, port);
   m_muduo_server = std::make_shared<muduo::net::TcpServer>(&m_eventloop, address, "RpcProvider");
-  // 绑定连接回调和消息读写回调方法  分离了网络代码和业务代码
-  /*
-  bind的作用：
-  如果不使用std::bind将回调函数和TcpConnection对象绑定起来，那么在回调函数中就无法直接访问和修改TcpConnection对象的状态。因为回调函数是作为一个独立的函数被调用的，它没有当前对象的上下文信息（即this指针），也就无法直接访问当前对象的状态。
-  如果要在回调函数中访问和修改TcpConnection对象的状态，需要通过参数的形式将当前对象的指针传递进去，并且保证回调函数在当前对象的上下文环境中被调用。这种方式比较复杂，容易出错，也不便于代码的编写和维护。因此，使用std::bind将回调函数和TcpConnection对象绑定起来，可以更加方便、直观地访问和修改对象的状态，同时也可以避免一些常见的错误。
-  */
-  // 设置回调（类似于中间件)
-  // placeholders占位符，代表回调函数被调用时传入的第一个参数（这里就是 muduo 的 TcpConnectionPtr
-  m_muduo_server->setConnectionCallback(std::bind(&RpcProvider::OnConnection, this, std::placeholders::_1));
-  // 处理消息事件
-  m_muduo_server->setMessageCallback(std::bind(&RpcProvider::OnMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-  // 设置线程数量
-  m_muduo_server->setThreadNum(4); // 一般设置为cpu核心数量
-                                   //  rpc服务端准备启动，打印信息
-  std::cout << "RpcProvider start service at ip:" << ip << " port:" << port << std::endl;
-  m_muduo_server->start();
+
+  m_muduo_server->setConnectionCallback(
+      std::bind(&RpcProvider::OnConnection, this, std::placeholders::_1));
+  m_muduo_server->setMessageCallback(
+      std::bind(&RpcProvider::OnMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+  m_muduo_server->setThreadNum(4);
+
+  // !!! 把任何可能“清 fd / daemonize / fork”的步骤都放在 start() 之前完成 !!!
+  // 确保 start() 之后，不再有“清理 fd”的动作
+
+  m_muduo_server->start(); // 真正 bind/listen
+
+  // 自检：本进程回连自身端口；失败则立刻报错退出
+  int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  sockaddr_in sa{};
+  sa.sin_family = AF_INET;
+  sa.sin_port = htons(port);
+  sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  ::fcntl(fd, F_SETFL, O_NONBLOCK);
+  int r = ::connect(fd, (sockaddr *)&sa, sizeof(sa));
+  if (!(r == 0 || (r == -1 && errno == EINPROGRESS)))
+  {
+    fprintf(stderr, "[WARN] self-connect check failed node=%d port=%d errno=%d\n",
+            nodeIndex, port, errno);
+    // 不 abort；必要时可 sleep 后重试几次
+  }
+  ::close(fd);
+
+  std::cout << "RpcProvider listen ok at 0.0.0.0:" << port
+            << " nodeIndex:" << nodeIndex << " threads:" << 4 << std::endl;
+
   m_eventloop.loop();
-  /*
-   这段代码是在启动网络服务和事件循环，其中server是一个TcpServer对象，m_eventLoop是一个EventLoop对象。
- 首先调用server.start()函数启动网络服务。在Muduo库中，TcpServer类封装了底层网络操作，包括TCP连接的建立和关闭、接收客户端数据、发送数据给客户端等等。通过调用TcpServer对象的start函数，可以启动底层网络服务并监听客户端连接的到来。
- 接下来调用m_eventLoop.loop()函数启动事件循环。在Muduo库中，EventLoop类封装了事件循环的核心逻辑，包括定时器、IO事件、信号等等。通过调用EventLoop对象的loop函数，可以启动事件循环，等待事件的到来并处理事件。
- 在这段代码中，首先启动网络服务，然后进入事件循环阶段，等待并处理各种事件。网络服务和事件循环是两个相对独立的模块，它们的启动顺序和调用方式都是确定的。启动网络服务通常是在事件循环之前，因为网络服务是事件循环的基础。启动事件循环则是整个应用程序的核心，所有的事件都在事件循环中被处理。
-   */
 }
 
 // 新的socket连接回调
@@ -224,10 +217,11 @@ void RpcProvider::SendRpcResponse(const muduo::net::TcpConnectionPtr &conn, goog
   {
     std::cout << "serialize response_str error!" << std::endl;
   }
-    //    conn->shutdown(); // 模拟http的短链接服务，由rpcprovider主动断开连接  //改为长连接，不主动断开
+  //    conn->shutdown(); // 模拟http的短链接服务，由rpcprovider主动断开连接  //改为长连接，不主动断开
 }
 // RAII 自动析构
-RpcProvider::~RpcProvider() {
+RpcProvider::~RpcProvider()
+{
   std::cout << "[func - RpcProvider::~RpcProvider()]: ip和port信息：" << m_muduo_server->ipPort() << std::endl;
   m_eventloop.quit();
   //    m_muduo_server.   怎么没有stop函数，奇奇怪怪，看csdn上面的教程也没有要停止，甚至上面那个都没有

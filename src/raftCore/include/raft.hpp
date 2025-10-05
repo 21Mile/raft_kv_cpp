@@ -1,6 +1,6 @@
 
 
-#pragma once
+
 #ifndef RAFT_H
 #define RAFT_H
 
@@ -17,7 +17,7 @@
 #include "boost/any.hpp"
 #include "boost/serialization/serialization.hpp"
 // 自定义头文件
-#include "utils.hpp"
+#include "m_utils.hpp"
 #include "ApplyMsg.hpp"
 #include "Persister.hpp"
 #include "mconfig.hpp"

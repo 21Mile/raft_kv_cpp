@@ -1,4 +1,4 @@
-#pragma once
+
 
 #ifndef PUBLIC_MLOG
 #define PUBLIC_MLOG

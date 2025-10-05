@@ -1,4 +1,4 @@
-#pragma once
+
 #ifndef APPLYMSG_H
 #define APPLYMSG_H
 

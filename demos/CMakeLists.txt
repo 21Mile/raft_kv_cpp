@@ -1,0 +1,3 @@
+add_subdirectory(raftServer)
+add_subdirectory(raftClient)
+add_subdirectory(raftSingleServer)

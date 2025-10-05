@@ -1,0 +1,1 @@
+watch -n 0.5 'ss -ltnp | egrep "2401(0|1|2|3|4)\b"'

@@ -1,69 +1,119 @@
 #include "mpRpcConfig.hpp"
 #include <iostream>
+#include <fstream>
 #include <string>
-// 解析RPC配置文件
+#include <sstream>
+#include <toml.hpp>
+#include <type_traits>
+
+// 把 TOML 的层级展平为 "a.b.c" 形式写入 m_configMap
+static void FlattenToml(const toml::value &v,
+                        const std::string &prefix,
+                        std::unordered_map<std::string, std::string> &out)
+{
+    using kind = toml::value_t;
+
+    const auto put_scalar = [&](const std::string &key, const toml::value &val)
+    {
+        std::string s;
+        switch (val.type())
+        {
+        case kind::string:
+            s = toml::get<std::string>(val);
+            break;
+        case kind::integer:
+            s = std::to_string(toml::get<std::int64_t>(val));
+            break;
+        case kind::floating:
+            s = std::to_string(toml::get<double>(val));
+            break;
+        case kind::boolean:
+            s = toml::get<bool>(val) ? "true" : "false";
+            break;
+        case kind::local_date:
+        case kind::local_time:
+        case kind::local_datetime:
+        case kind::offset_datetime:
+            s = toml::format(val);
+            break;
+        default:
+            return; // 其他复杂类型在外层处理
+        }
+        out[key] = std::move(s);
+    };
+
+    switch (v.type())
+    {
+    case kind::table:
+    {
+        const auto &tbl = toml::get<toml::table>(v); // ← 用 get
+        for (const auto &kv : tbl)
+        {
+            const std::string key = prefix.empty() ? kv.first : (prefix + "." + kv.first);
+            FlattenToml(kv.second, key, out);
+        }
+        break;
+    }
+    case kind::array:
+    {
+        const auto &arr = toml::get<toml::array>(v); // ← 用 get
+        for (std::size_t i = 0; i < arr.size(); ++i)
+        {
+            const std::string key = prefix + "[" + std::to_string(i) + "]";
+            FlattenToml(arr.at(i), key, out);
+        }
+        break;
+    }
+    default:
+        if (!prefix.empty())
+            put_scalar(prefix, v);
+        break;
+    }
+}
+
 void MprpcConfig::LoadConfigFile(const char *config_file)
 {
-    FILE *pf = fopen(config_file, "r");
-    if (pf == nullptr)
+    try
     {
-        std::cout << config_file << " is note exist!" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+        toml::value root = toml::parse(config_file);
+        m_configMap.clear();
+        FlattenToml(root, "", m_configMap);
 
-    // 1.注释   2.正确的配置项 =    3.去掉开头的多余的空格
-    while (!feof(pf))
-    {
-        char buf[512] = {0}; // 缓冲区
-        fgets(buf, 512, pf); // 读取file到缓冲区
-        // 去除前导空格
-        std::string read_buf(buf);
-        Trim(read_buf);
-        // 判断#的注释 (跳过注释元素)
-        if (read_buf[0] == '#' || read_buf.empty())
+        // 兼容老键：node0.ip/node0.port → node0ip/node0port
+        for (const auto &kv : m_configMap)
         {
-            continue;
+            auto pos = kv.first.find('.');
+            if (pos == std::string::npos)
+                continue;
+            const std::string left = kv.first.substr(0, pos);   // node0
+            const std::string right = kv.first.substr(pos + 1); // ip/port
+            if (right == "ip" || right == "port")
+            {
+                m_configMap[left + right] = kv.second; // node0ip / node0port
+            }
         }
-        int idx = read_buf.find('=');
-        if (idx == -1)
-        {
-            // 配置项不合法
-            continue;
-        }
-        std::string key;
-        std::string value;
-        key = read_buf.substr(0, idx);
-        Trim(key);
-        int endidx = read_buf.find('\n', idx); // 找到换行符的前一个字符元素索引
-        value = read_buf.substr(idx + 1, endidx - idx - 1);
-        Trim(value);
-        m_configMap.insert({key, value});
     }
-    fclose(pf);
+    catch (const std::exception &e)
+    {
+        std::cerr << "解析 TOML 配置失败: " << config_file << "\nwhat(): " << e.what() << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
 }
-// 查询配置项信息
+
 std::string MprpcConfig::Load(const std::string &key)
 {
     auto it = m_configMap.find(key);
     if (it == m_configMap.end())
-    {
         return "";
-    }
     return it->second;
 }
+
 void MprpcConfig::Trim(std::string &src_buf)
 {
-    int idx = src_buf.find_first_not_of(' ');
-    if (idx != -1)
-    {
-        // 说明字符串前面有空格
-        src_buf = src_buf.substr(idx, src_buf.size() - idx);
-    }
-    // 去掉字符串后面多余的空格
-    idx = src_buf.find_last_not_of(' ');
-    if (idx != -1)
-    {
-        // 说明字符串后面有空格
-        src_buf = src_buf.substr(0, idx + 1);
-    }
+    auto l = src_buf.find_first_not_of(' ');
+    if (l != std::string::npos)
+        src_buf.erase(0, l);
+    auto r = src_buf.find_last_not_of(' ');
+    if (r != std::string::npos)
+        src_buf.erase(r + 1);
 }

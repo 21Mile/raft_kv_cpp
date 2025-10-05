@@ -1,6 +1,6 @@
-#pragma once
-#ifndef RPCPROVIDER_H
 
+#ifndef RPCPROVIDER_H
+#define RPCPROVIDER_H
 #include <google/protobuf/descriptor.h>
 #include <muduo/net/EventLoop.h>
 #include <muduo/net/InetAddress.h>

@@ -1,5 +1,5 @@
 
-#pragma once
+
 #ifndef LOCK_QUEUE
 #define LOCK_QUEUE
 #include <boost/archive/text_iarchive.hpp>

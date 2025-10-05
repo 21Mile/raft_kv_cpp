@@ -1,4 +1,4 @@
-#pragma once
+
 #ifndef RAFTRPCUTIL_H
 #define RAFTRPCUTIL_H
 #include "raftRpc.pb.h"

@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <atomic>
 #include "scheduler.hpp"
-#include "utils.hpp"
+#include "fiber_utils.hpp"
 
 namespace monsoon {
 const bool DEBUG = true;
